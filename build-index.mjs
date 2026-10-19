@@ -1,12 +1,89 @@
 // Stáhne produktový feed (formát Heureka) a postaví z něj kompaktní vyhledávací index.
+// Produkty, které ve feedu chybí (např. vyřazené z Heureky), doplní z mapy webu (sitemap) a jejich stránek.
 // Použití: node build-index.mjs [výstupní složka]
-// Proměnné: FEED_URL (URL nebo cesta k souboru), MIN_ITEMS (pojistka proti prázdnému feedu)
+// Proměnné: FEED_URL (URL nebo cesta k souboru), MIN_ITEMS (pojistka proti prázdnému feedu),
+//           SITEMAP_URL (prázdná hodnota = nedoplňovat z webu), EXTRA_MAX (max. počet stránek k doplnění)
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 
 const FEED = process.env.FEED_URL || 'https://www.promontaz.cz/heureka/export/products.xml';
+const SITEMAP = process.env.SITEMAP_URL ?? 'https://www.promontaz.cz/sitemap.xml';
+const EXTRA_MAX = Number(process.env.EXTRA_MAX || 3000);
 const OUT = process.argv[2] || 'public';
 const MIN_ITEMS = Number(process.env.MIN_ITEMS || 1000);
+const UA = { 'User-Agent': 'promontaz-search-builder' };
+
+async function getText(url) {
+  const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(30000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  return (buf[0] === 0x1f && buf[1] === 0x8b ? zlib.gunzipSync(buf) : buf).toString('utf8');
+}
+
+async function sitemapUrls() {
+  const locsOf = (xml) => [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map(m => decode(m[1]));
+  const root = locsOf(await getText(SITEMAP));
+  const subs = root.filter(u => /\.xml(\.gz)?$/i.test(u));
+  const out = root.filter(u => !subs.includes(u));
+  for (const s of subs) out.push(...locsOf(await getText(s)));
+  return out;
+}
+
+// Najde v HTML objekt "product": {...} (datová vrstva Shoptetu) a vrátí ho jako JSON.
+function extractProduct(html) {
+  const key = '"product":';
+  let from = 0;
+  while ((from = html.indexOf(key, from)) >= 0) {
+    const start = html.indexOf('{', from + key.length);
+    if (start < 0) return null;
+    from += key.length;
+    if (!/^\s*$/.test(html.slice(from, start))) continue;
+    let depth = 0, inStr = false, esc = false, i = start;
+    for (; i < html.length; i++) {
+      const ch = html[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === '\\') esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}' && --depth === 0) break;
+    }
+    try {
+      const o = JSON.parse(html.slice(start, i + 1));
+      if (o && typeof o.name === 'string' && (o.code || o.id)) return o;
+    } catch {}
+  }
+  return null;
+}
+
+async function pageProduct(url) {
+  const html = await getText(url);
+  const o = extractProduct(html);
+  if (!o) return null;
+  const img = (html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i) || [])[1] || '';
+  const avail = (html.match(/class="availability-label"[^>]*>([^<]*)</i) || [])[1] || '';
+  const codes = [o.code, ...(Array.isArray(o.codes) ? o.codes.map(c => c && c.code) : [])].filter(Boolean).map(String);
+  return {
+    name: o.name.trim(),
+    url,
+    img: decode(img),
+    price: Number(o.priceWithVat),
+    manu: o.manufacturer || '',
+    cat: o.defaultCategory || o.currentCategory || '',
+    codes: new Set(codes),
+    stock: /skladem/i.test(avail) ? 1 : 0,
+    variants: o.hasVariants ? 2 : 1,
+  };
+}
+
+async function runPool(list, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: n }, async () => { while (i < list.length) await fn(list[i++]); }));
+}
 
 async function loadFeed() {
   if (!/^https?:/i.test(FEED)) return fs.readFileSync(FEED, 'utf8');
@@ -78,7 +155,32 @@ for (const b of blocks) {
   });
 }
 
+const fromFeed = byUrl.size;
+if (SITEMAP) {
+  try {
+    const locs = await sitemapUrls();
+    const todo = [...new Set(locs.map(u => u.split('?')[0].split('#')[0]))]
+      .filter(u => /^https?:\/\/[^/]+\/[^/]+\/[^/]+\/$/.test(u) && !byUrl.has(u))
+      .slice(0, EXTRA_MAX);
+    console.log(`Sitemap: ${locs.length} adres, mimo feed ${todo.length} ke kontrole`);
+    let added = 0, notProduct = 0, failed = 0;
+    await runPool(todo, 4, async (u) => {
+      try {
+        const p = await pageProduct(u);
+        if (p) { byUrl.set(u, p); added++; } else notProduct++;
+      } catch (e) {
+        failed++;
+        if (failed <= 5) console.warn(`  chyba: ${e.message}`);
+      }
+    });
+    console.log(`Doplněno z webu: ${added} produktů (stránky bez produktu: ${notProduct}, chyby: ${failed})`);
+  } catch (e) {
+    console.warn(`Doplnění ze sitemap přeskočeno: ${e.message}`);
+  }
+}
+
 const products = [...byUrl.values()];
+console.log(`Celkem: ${products.length} produktů (z feedu ${fromFeed})`);
 if (products.length < MIN_ITEMS) {
   throw new Error(`Jen ${products.length} produktů (minimum ${MIN_ITEMS}). Index nezveřejňuji, aby se nerozbilo vyhledávání.`);
 }
