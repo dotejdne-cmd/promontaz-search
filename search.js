@@ -134,6 +134,16 @@
         if (m) m.forEach(function (w, id) { if (!ids || ids.has(id)) next.set(id, ids ? Math.min(w, ids.get(id)) : w); });
         ids = next;
       });
+      // stejné číslo vícekrát (120x120): produkt ho musí mít také vícekrát
+      var need = {}, dup = false;
+      parts.forEach(function (p) { need[p] = (need[p] || 0) + 1; if (need[p] > 1) dup = true; });
+      if (dup) ids.forEach(function (w, id) {
+        var have = {};
+        (names[id].match(TOK) || []).forEach(function (t) {
+          t.replace(/\.0+(?=x|$)/g, '').split('x').forEach(function (p) { if (p) have[p] = (have[p] || 0) + 1; });
+        });
+        for (var p in need) if ((have[p] || 0) < need[p]) { ids.delete(id); break; }
+      });
       return { ids: ids, parts: parts };
     }
 
