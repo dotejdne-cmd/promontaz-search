@@ -185,6 +185,23 @@ if (products.length < MIN_ITEMS) {
   throw new Error(`Jen ${products.length} produktů (minimum ${MIN_ITEMS}). Index nezveřejňuji, aby se nerozbilo vyhledávání.`);
 }
 
+// Klíčová slova z exportu produktů (řada, typ, barva, objednací kód…), párováno podle kódu produktu
+let kwMap = {};
+if (fs.existsSync('keywords.json')) {
+  kwMap = JSON.parse(fs.readFileSync('keywords.json', 'utf8'));
+  const seen = new Set();
+  let withKw = 0;
+  for (const p of products) {
+    const kws = [];
+    for (const c of p.codes) if (c in kwMap) { seen.add(c); if (kwMap[c]) kws.push(kwMap[c]); }
+    p.kw = [...new Set(kws.join(' ').split(' '))].filter(Boolean).join(' ');
+    if (p.kw) withKw++;
+  }
+  const missing = Object.keys(kwMap).filter(c => !seen.has(c));
+  console.log(`Klíčová slova: ${withKw} produktů; v exportu, ale ne na webu ani ve feedu: ${missing.length}`);
+  if (missing.length) console.log(`  např. ${missing.slice(0, 40).join(', ')}`);
+}
+
 const base = commonPrefix(products.map(p => p.url));
 const imgBase = commonPrefix(products.map(p => p.img).filter(Boolean));
 const cats = [], catIdx = new Map();
@@ -201,6 +218,7 @@ const items = products.map(p => [
   idx(cats, catIdx, p.cat),
   p.stock,
   p.variants > 1 ? 1 : 0,
+  p.kw || '',
 ]);
 
 fs.mkdirSync(OUT, { recursive: true });

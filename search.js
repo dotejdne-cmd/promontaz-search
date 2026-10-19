@@ -5,20 +5,28 @@
 
   // ===== NASTAVENÍ =====
   var CONFIG = {
-    mode: 'test',                          // 'test' = jen po otevření webu s ?psearch=test, 'all' = pro všechny
+    mode: 'all',                           // 'test' = jen po otevření webu s ?psearch=test, 'all' = pro všechny
     inputSelector: 'input[name="string"]', // vyhledávací pole Shoptetu
     hideSelector: '.search-whisperer',     // původní našeptávač Shoptetu (skryje se, až náš naběhne)
     searchUrl: '/vyhledavani/?string=',    // záloha, když pole není ve formuláři
     maxResults: 8,
     minChars: 2,
     accent: '#f28c1e',
-    thumb: function (url) { return url; }, // případná záměna na menší náhled obrázku
+    expandLimit: 60,                       // kolik výsledků ukázat po „Zobrazit všechny“ / Enteru
+    // malý náhled 100×100 místo originálu (Shoptet CDN); když neexistuje, použije se původní obrázek
+    thumb: function (url) { return url.replace(/\/user\/shop\/(orig|big|detail)\//, '/user/shop/related/'); },
     // Slang a zkratky – jedno slovo bez diakritiky → alternativy
     synonyms: {
       dibl: ['hmozdinka'], dible: ['hmozdinka'],
       sdk: ['sadrokarton'], sadrokarton: ['sdk'],
       zavitovka: ['zavitova'], zavitovky: ['zavitova'],
-      kvh: ['hranol'], hranol: ['kvh'], hranoly: ['kvh']
+      kvh: ['hranol'], hranol: ['kvh'], hranoly: ['kvh'],
+      prodluzovacka: ['prodluzovaci', 'prodluz'], prodluzovacky: ['prodluzovaci', 'prodluz'], prodluzka: ['prodluzovaci', 'prodluz'],
+      buben: ['bubnu', 'bubny'], bubny: ['buben', 'bubnu'],
+      '1nasobny': ['jednonasobny'], '2nasobny': ['dvojnasobny'], '3nasobny': ['trojnasobny'],
+      '4nasobny': ['ctyrnasobny'], '5nasobny': ['petinasobny'],
+      '1nasobna': ['jednonasobna'], '2nasobna': ['dvojnasobna'], '3nasobna': ['trojnasobna'],
+      dvojzasuvka: ['dvojnasobna']
     }
   };
   if (typeof window !== 'undefined' && window.PSEARCH_CONFIG) {
@@ -91,6 +99,7 @@
       tokens(it[0], true).forEach(function (t) { add(t, id, 3); });
       tokens(data.manus[it[4]], true).forEach(function (t) { add(t, id, 2); });
       tokens(data.cats[it[6]], true).forEach(function (t) { add(t, id, 1); });
+      if (it[9]) tokens(it[9], true).forEach(function (t) { add(t, id, 1); }); // řada, typ, barva… z exportu
       (it[5] || '').split(' ').forEach(function (c) {
         if (!c) return;
         var k = compact(c);
@@ -333,12 +342,14 @@
     panel.style.maxHeight = Math.max(200, window.innerHeight - top - 12) + 'px';
   }
   function open() { if (!panel.parentNode) document.body.appendChild(panel); panel.style.display = 'block'; place(); }
-  function close() { panel.style.display = 'none'; cursor = -1; }
+  function close() { panel.style.display = 'none'; cursor = -1; expanded = false; }
 
-  function render(q, res) {
-    results = res.items; cursor = -1; lastTotal = res.total;
+  var expanded = false;
+  function render(q, res, isExpanded) {
+    results = res.items; cursor = -1; lastTotal = res.total; expanded = !!isExpanded;
+    var shopBtn = '<button type="button" class="ps-all ps-shop" data-i="shop">Hledat „' + esc(q) + '“ v celém e-shopu</button>';
     if (!res.items.length) {
-      panel.innerHTML = '<div class="ps-msg">Pro „' + esc(q) + '“ jsme nic nenašli. Zkuste kratší výraz nebo kód produktu.</div>';
+      panel.innerHTML = '<div class="ps-msg">Pro „' + esc(q) + '“ jsme nic nenašli. Zkuste kratší výraz nebo kód produktu.</div>' + shopBtn;
       return open();
     }
     var html = res.items.map(function (it, i) {
@@ -346,14 +357,26 @@
       if (it.manufacturer) meta.push('<span>' + esc(it.manufacturer) + '</span>');
       if (it.code) meta.push('<span>kód ' + esc(it.code) + '</span>');
       return '<a class="ps-item" role="option" data-i="' + i + '" href="' + esc(it.url) + '">' +
-        (it.img ? '<img class="ps-img" loading="lazy" alt="" onerror="this.style.visibility=\'hidden\'" src="' + esc(CONFIG.thumb(it.img)) + '">' : '<span class="ps-img"></span>') +
+        (it.img ? '<img class="ps-img" loading="lazy" alt="" data-o="' + esc(it.img) + '" src="' + esc(CONFIG.thumb(it.img)) + '">' : '<span class="ps-img"></span>') +
         '<span><span class="ps-name">' + highlight(it.name, res.terms) + '</span><span class="ps-meta">' + meta.join('') + '</span></span>' +
         '<span class="ps-price">' + (it.price != null ? (it.from ? 'od ' : '') + fmt(it.price) : '') +
         (it.stock ? '<span class="ps-stock">Skladem</span>' : '') + '</span></a>';
     }).join('');
-    html += '<button type="button" class="ps-all" data-i="all">Zobrazit všechny výsledky (' + res.total + ')</button>';
+    if (!expanded && res.total > res.items.length) {
+      html += '<button type="button" class="ps-all" data-i="all">Zobrazit všechny výsledky (' + res.total + ')</button>';
+    } else {
+      if (res.total > res.items.length) html += '<div class="ps-msg">Zobrazeno ' + res.items.length + ' z ' + res.total + '. Upřesněte hledání.</div>';
+      html += shopBtn;
+    }
     panel.innerHTML = html;
     open();
+    if (expanded) panel.scrollTop = 0;
+  }
+
+  function expand() {
+    if (!engine || !lastQuery) return;
+    render(lastQuery, engine.search(lastQuery, CONFIG.expandLimit), true);
+    track('naseptavac_vse', { search_term: lastQuery, pocet_vysledku: lastTotal });
   }
 
   function setCursor(i) {
@@ -418,9 +441,32 @@
       else if (e.key === 'Escape') { close(); }
       else if (e.key === 'Enter' && cursor >= 0) {
         e.preventDefault();
-        if (cursor < results.length) go(cursor); else submitAll();
+        if (cursor < results.length) go(cursor);
+        else act(panel.querySelectorAll('.ps-item,.ps-all')[cursor]);
       }
     });
+    // Enter / tlačítko Hledat: když našeptávač něco našel, ukáže všechny výsledky v panelu
+    // (vyhledávání Shoptetu některé produkty nenajde). Druhé potvrzení = hledání v e-shopu.
+    if (input.form && !input.form.__psearch) {
+      input.form.__psearch = true;
+      input.form.addEventListener('submit', function (e) {
+        var q = input.value.trim();
+        if (!engine || expanded || q.length < CONFIG.minChars) return;
+        if (!engine.search(q, 1).total) return;
+        e.preventDefault();
+        activeInput = input;
+        lastQuery = q;
+        expand();
+      });
+    }
+  }
+
+  function act(el) {
+    if (!el) return;
+    var i = el.getAttribute('data-i');
+    if (i === 'all') expand();
+    else if (i === 'shop') submitAll();
+    else go(Number(i));
   }
 
   panel.addEventListener('mousedown', function (e) { e.preventDefault(); });
@@ -428,8 +474,15 @@
     var el = e.target.closest('[data-i]');
     if (!el) return;
     e.preventDefault();
-    if (el.getAttribute('data-i') === 'all') submitAll(); else go(Number(el.getAttribute('data-i')));
+    act(el);
   });
+  // malý náhled neexistuje → původní obrázek, a když ani ten, skrýt
+  panel.addEventListener('error', function (e) {
+    var t = e.target;
+    if (!t || t.tagName !== 'IMG') return;
+    var o = t.getAttribute('data-o');
+    if (o && t.src !== o) { t.removeAttribute('data-o'); t.src = o; } else t.style.visibility = 'hidden';
+  }, true);
   document.addEventListener('mousedown', function (e) {
     if (!panel.contains(e.target) && e.target !== activeInput) close();
   });
