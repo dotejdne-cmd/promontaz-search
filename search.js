@@ -17,7 +17,8 @@
     synonyms: {
       dibl: ['hmozdinka'], dible: ['hmozdinka'],
       sdk: ['sadrokarton'], sadrokarton: ['sdk'],
-      zavitovka: ['zavitova'], zavitovky: ['zavitova']
+      zavitovka: ['zavitova'], zavitovky: ['zavitova'],
+      kvh: ['hranol'], hranol: ['kvh'], hranoly: ['kvh']
     }
   };
   if (typeof window !== 'undefined' && window.PSEARCH_CONFIG) {
@@ -31,7 +32,8 @@
 
   function norm(s) {
     return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/(\d),(\d)/g, '$1.$2').replace(/[×*]/g, 'x').replace(/(\d)\s*x\s*(\d)/g, '$1x$2');
+      .replace(/(\d),(\d)/g, '$1.$2').replace(/[×*]/g, 'x')
+      .replace(/(\d)\s*[x\/]\s*(?=\d)/g, '$1x'); // rozměry 120/100/4000, 120 x 100, 120×100 → 120x100x4000
   }
   function compact(s) { return norm(s).replace(/[^a-z0-9]/g, ''); }
 
@@ -121,12 +123,27 @@
       return res;
     }
 
+    // rozměr rozložený na čísla: produkt musí obsahovat všechna (v libovolném pořadí)
+    function partsMatch(q) {
+      if (!/\dx\d/.test(q)) return null;
+      var parts = q.replace(/\.0+(?=x|$)/g, '').split('x').filter(Boolean);
+      if (parts.length < 2 || !parts.every(function (p) { return /\d/.test(p); })) return null;
+      var ids = null;
+      parts.forEach(function (p) {
+        var m = post.get(p), next = new Map();
+        if (m) m.forEach(function (w, id) { if (!ids || ids.has(id)) next.set(id, ids ? Math.min(w, ids.get(id)) : w); });
+        ids = next;
+      });
+      return { ids: ids, parts: parts };
+    }
+
     function search(query, limit) {
       var qn = norm(query).trim();
       if (!qn) return { items: [], total: 0, terms: [] };
       var qts = tokens(qn, false).filter(function (t, i, a) { return a.indexOf(t) === i; });
       var req = qts.filter(function (t) { return !STOP[t]; });
       if (!req.length) req = qts;
+      var dimParts = [];
       var per = req.map(function (q) {
         var sc = new Map(), alts = [q].concat(cfg.synonyms[q] || []);
         alts.forEach(function (a, ai) {
@@ -137,24 +154,44 @@
             });
           });
         });
+        // rozměr v jiném pořadí (120x100 najde i 100/120/4000)
+        var pm = partsMatch(q);
+        if (pm) {
+          dimParts = dimParts.concat(pm.parts);
+          pm.ids.forEach(function (w, id) {
+            var s = w * 0.7;
+            if ((sc.get(id) || 0) < s) sc.set(id, s);
+          });
+        }
         return sc;
       });
+      var isNum = function (t) { return /\d/.test(t); };
+      var exact = codes.get(compact(query)) || [];
+      // slovo, které v katalogu vůbec není: když zbydou jen čísla, raději nic (jinak "kvh 120" = kabely)
+      var known = [], unknownWord = false;
+      req.forEach(function (q, i) { if (per[i].size) known.push(i); else if (!isNum(q)) unknownWord = true; });
+      var wordCount = known.filter(function (i) { return !isNum(req[i]); }).length;
+      if (!known.length || (unknownWord && !wordCount)) { known = []; wordCount = 0; }
+      req = known.map(function (i) { return req[i]; });
+      per = known.map(function (i) { return per[i]; });
+      if (!req.length && !exact.length) return { items: [], total: 0, terms: [] };
       var acc = new Map();
-      per.forEach(function (sc) {
+      per.forEach(function (sc, i) {
+        var word = !isNum(req[i]);
         sc.forEach(function (s, id) {
-          var a = acc.get(id) || { s: 0, n: 0 };
-          a.s += s; a.n++;
+          var a = acc.get(id) || { s: 0, n: 0, w: 0 };
+          a.s += s; a.n++; if (word) a.w++;
           acc.set(id, a);
         });
       });
-      var need = req.length, full = [];
-      acc.forEach(function (a, id) { if (a.n === need) full.push(id); });
-      var pool = full;
-      if (!pool.length && need > 1) {
-        acc.forEach(function (a, id) { if (a.n >= need - 1) pool.push(id); });
+      var need = Math.max(req.length, 1), full = [];
+      acc.forEach(function (a, id) { if (a.n === req.length) full.push(id); });
+      var pool = req.length ? full : [];
+      if (!pool.length && req.length > 1) {
+        // volnější shoda: všechna slova musí sedět, chybět smí jen číslo/rozměr
+        acc.forEach(function (a, id) { if (wordCount ? a.w === wordCount : a.n >= need - 1) pool.push(id); });
       }
-      var exact = codes.get(compact(query)) || [];
-      exact.forEach(function (id) { if (pool.indexOf(id) < 0) pool.push(id); if (!acc.has(id)) acc.set(id, { s: 0, n: need }); });
+      exact.forEach(function (id) { if (pool.indexOf(id) < 0) pool.push(id); if (!acc.has(id)) acc.set(id, { s: 0, n: need, w: 0 }); });
       var scored = pool.map(function (id) {
         var a = acc.get(id), it = items[id], s = a.s * (a.n / need);
         if (names[id].lastIndexOf(qn, 0) === 0) s += 2;
@@ -166,7 +203,7 @@
       }).sort(function (x, y) { return y.s - x.s; });
       return {
         total: scored.length,
-        terms: req.concat(req.map(stem)),
+        terms: req.concat(req.map(stem), dimParts),
         items: scored.slice(0, limit || cfg.maxResults).map(function (r) {
           var it = items[r.id], cat = data.cats[it[6]] || '';
           return {
