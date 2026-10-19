@@ -7,7 +7,7 @@
   var CONFIG = {
     mode: 'all',                           // 'test' = jen po otevření webu s ?psearch=test, 'all' = pro všechny
     inputSelector: 'input[name="string"]', // vyhledávací pole Shoptetu
-    hideSelector: '.search-whisperer',     // původní našeptávač Shoptetu (skryje se, až náš naběhne)
+    hideSelector: '.search-whisperer, .sai-SearchWidget__dropdown', // původní našeptávač Shoptetu a Saimon (skryjí se, až náš naběhne)
     searchUrl: '/vyhledavani/?string=',    // záloha, když pole není ve formuláři
     maxResults: 8,
     minChars: 2,
