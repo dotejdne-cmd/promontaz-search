@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test vyhledávání ProMontaz</title>
+<style>
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;background:#f2f3f4;color:#23272b}
+  header{background:#2b2f33;padding:18px 20px}
+  form{max-width:640px;margin:0 auto;display:flex;gap:8px}
+  input{flex:1;font:inherit;font-size:16px;padding:11px 14px;border:0;border-radius:4px}
+  button{font:inherit;font-weight:600;padding:0 18px;border:0;border-radius:4px;background:#f28c1e;color:#fff}
+  main{max-width:640px;margin:24px auto;padding:0 20px;line-height:1.5}
+</style>
+<script>window.PSEARCH_CONFIG = { mode: 'all' };</script>
+</head>
+<body>
+<header>
+  <form action="https://www.promontaz.cz/vyhledavani/" method="get">
+    <input name="string" placeholder="Hledat produkt, výrobce nebo kód" autofocus>
+    <button>Hledat</button>
+  </form>
+</header>
+<main>
+  <p>Testovací stránka našeptávače nad aktuálním feedem. Zkuste třeba „zavitova m8“, „hmozdinky“, „dibl 8“, „abb levit“ nebo kód produktu.</p>
+</main>
+<script src="search.js" defer></script>
+</body>
+</html>
