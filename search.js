@@ -332,7 +332,7 @@
 
   function place() {
     if (!activeInput) return;
-    var r = activeInput.getBoundingClientRect(), vw = window.innerWidth;
+    var r = activeInput.getBoundingClientRect(), vw = document.documentElement.clientWidth || window.innerWidth;
     var w = Math.min(Math.max(r.width, 380), vw - 16);
     var left = Math.min(Math.max(8, r.left), vw - w - 8);
     var top = r.bottom + 6;
