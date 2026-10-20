@@ -224,7 +224,7 @@ const items = products.map(p => [
 fs.mkdirSync(OUT, { recursive: true });
 const data = { v: 1, built: new Date().toISOString(), base, imgBase, cats, manus, items };
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(data));
-for (const f of ['search.js', 'demo.html']) {
+for (const f of ['search.js', 'search-v2.js', 'demo.html']) {
   if (fs.existsSync(f)) fs.copyFileSync(f, path.join(OUT, f));
 }
 const kb = Math.round(fs.statSync(path.join(OUT, 'index.json')).size / 1024);
