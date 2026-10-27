@@ -180,6 +180,11 @@ test('rozměry se nepřehazují; dílčí rozměr jen ve správném pořadí pol
   assert.deepEqual(names('osb 1250x18'), ['OSB 2500/1250/18 RH'], 'šířka × tloušťka');
   assert.deepEqual(names('osb 2500x625').sort(), ['OSB 2500/625/12 PD4', 'OSB 2500/625/15 PD4', 'OSB 2500/625/18 PD4', 'OSB 2500/625/22 PD4', 'OSB 2500/625/25 PD4']);
   assert.equal(S('osb 18x1250').total, 0, 'obrácené pořadí');
+  // rozměr s písmennou předponou: M8x2000 = 8x2000, M8x80 = 8x80
+  assert.deepEqual(names('zavitova tyc 8x2000'), ['HASPL Závitová tyč M8x2000, ZB 4.8']);
+  assert.deepEqual(names('kotva pruvlakova 8x80'), ['HASPL Kotva průvlaková LSB M8x80 ZB']);
+  assert.equal(S('kotva pruvlakova 80x8').total, 0, 'obrácené pořadí ani s předponou');
+  assert.equal(S('kotva pruvlakova 8x8').total, 0, 'M8x80 není 8x8');
 });
 
 test('hlášky používají původní tvar slov', () => {
