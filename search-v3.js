@@ -540,6 +540,10 @@
   function attach(input) {
     if (input.__psearch3) return;
     input.__psearch3 = true;
+    // Obsadit pole i pro v2 (v2 přeskakuje pole a formuláře s __psearch). Když je v testu řádek v3
+    // vložen PŘED řádkem v2, v2 se nepřipojí: jeden našeptávač, jedna obsluha kláves, jedno měření.
+    input.__psearch = true;
+    if (input.form) input.form.__psearch = true;
     input.setAttribute('autocomplete', 'off');
     var t = null;
     input.addEventListener('focus', function () { activeInput = input; load().catch(function () {}); if (input.value.trim().length >= CONFIG.minChars) run(input); });
@@ -651,6 +655,14 @@
 
   function scan() { document.querySelectorAll(CONFIG.inputSelector).forEach(attach); }
   function start() {
+    // v2 už je k poli připojená (řádek v3 je za řádkem v2) → v3 se raději nezapne, aby nevznikly
+    // dva našeptávače a dvojité měření. Zůstane v2 (nebo původní vyhledávání Shoptetu).
+    var first = document.querySelector(CONFIG.inputSelector);
+    if (first && first.__psearch && !first.__psearch3) {
+      if (window.console) console.warn('psearch3: běží už v2 – vložte řádek search-v3.js před search-v2.js');
+      st.remove();
+      return;
+    }
     scan();
     resultsPage();
     var pending = false;

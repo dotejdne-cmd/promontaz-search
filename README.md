@@ -44,6 +44,6 @@ Změny proti v2 (v2 zůstává beze změny jako záloha):
 - GA4 navíc: `naseptavac_stranka`, `naseptavac_stranka_klik`, `naseptavac_zbytek`; `naseptavac_nic` má parametr `chybi`
 
 Testovací režim bez úpravy souboru: `<script src="https://dotejdne-cmd.github.io/promontaz-search/search-v3.js" data-mode="test" defer></script>`
-a otevřít https://www.promontaz.cz/?psearch3=test (vypnutí `?psearch3=off`). V testu v3 skryje panel v2, takže mohou běžet oba řádky současně.
+a otevřít https://www.promontaz.cz/?psearch3=test (vypnutí `?psearch3=off`). Řádek v3 vložte **před** řádek v2: aktivní v3 pak v2 k poli nepustí (jeden našeptávač, jedna obsluha kláves, jedno měření); bez testovacího parametru se v3 nezapne a běží jen v2. Je-li řádek v3 až za v2, v3 se pro jistotu nezapne vůbec.
 
 Testy: `npm test`; v GitHub Actions běží pro každý pull request a vedlejší větev (`test.yml`) a před každým zveřejněním z main (`build.yml`). Porovnání v2 × v3: `npm run compare` nebo `node tools/compare.mjs cesta/k/index.json "dotaz1|dotaz2"`.
