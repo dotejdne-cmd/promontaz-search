@@ -1,0 +1,22 @@
+name: Testy vyhledávání
+
+# Testy pro pull requesty a vedlejší větve (zveřejnění na Pages řeší build.yml jen z main).
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test test/*.test.mjs
+      - run: node -e "require('./search.js'); require('./search-v2.js'); require('./search-v3.js')"
