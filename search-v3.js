@@ -78,6 +78,9 @@
     for (var i = 0; i < m.length; i++) {
       var t = m[i];
       out.push(t);
+      // rozměr s písmennou předponou (M14x2000, IP66/67/69, AKU16/5): přidat i čistě číselný tvar
+      var pre = expand && t.match(/^[a-z]{1,3}(\d+(?:\.\d+)?x\d[\d.x]*)$/);
+      if (pre) { m.push(pre[1]); }
       if (expand && isNum(t) && /[.x\/]/.test(t)) {
         var simp = t.replace(/\.0+(?=[x\/]|$)/g, '');
         if (simp !== t) out.push(simp);
