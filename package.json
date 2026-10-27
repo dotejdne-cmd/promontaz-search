@@ -1,0 +1,9 @@
+{
+  "name": "promontaz-search",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "compare": "node tools/compare.mjs"
+  }
+}
