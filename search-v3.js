@@ -319,7 +319,29 @@
       }).sort(function (x, y) { return y.s - x.s; });
       return result(scored, limit, words.concat(words.map(stem), synTerms));
     }
-    return { search: search, size: items.length };
+    // v3.1: záložní varianty dotazu, jen když původní dotaz nic nenašel (wago221 → wago 221, vrty → vruty, VR_2425 → VR 2425)
+    var TYPO = { vrty: 'vruty', vruti: 'vruty', vrut: 'vrut', hmozdinki: 'hmozdinky', hmozdinka: 'hmozdinka', silikom: 'silikon' };
+    function altQueries(q) {
+      var out = [], a;
+      a = q.replace(/([a-zA-Z]{2,})(\d)/g, '$1 $2').replace(/(\d)([a-zA-Z]{3,})/g, '$1 $2');
+      if (a !== q) out.push(a);
+      a = q.replace(/[_]+/g, ' ');
+      if (a !== q) out.push(a);
+      a = q.replace(/[A-Za-z\u00C0-\u017F]+/g, function (w) { var k = norm(w); return TYPO[k] && TYPO[k] !== k ? TYPO[k] : w; });
+      if (a !== q) out.push(a);
+      return out;
+    }
+    function searchFB(query, limit, noRest) {
+      var r = search(query, limit, noRest);
+      if (r && r.total) return r;
+      var alts = altQueries(String(query || ''));
+      for (var i = 0; i < alts.length; i++) {
+        var r2 = search(alts[i], limit, noRest);
+        if (r2 && r2.total) return r2;
+      }
+      return r;
+    }
+    return { search: searchFB, size: items.length };
   }
 
   if (typeof window === 'undefined') {
