@@ -12,3 +12,4 @@
 
 @media(max-width:767px){.category-top .subcategories{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:8px;margin:0 0 12px!important;padding:0 0 6px!important;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}.category-top .subcategories>li{flex:0 0 auto!important;width:auto!important;max-width:none!important;min-width:150px;padding:0!important;margin:0!important;scroll-snap-align:start}}
 @media(max-width:767px){.p-detail-inner-header h1,.p-detail-inner-header .h1{font-size:22px!important;line-height:1.25!important;margin:0 0 6px!important}.p-image-wrapper,.p-image-wrapper .p-image{height:auto!important;max-height:280px!important;min-height:0!important;overflow:hidden}.p-image-wrapper .p-image img{max-height:260px!important;width:auto;margin:0 auto;object-fit:contain}}
+.slick-dots li button{position:relative;overflow:visible}.slick-dots li button::after{content:"";position:absolute;left:-14px;right:-14px;top:-17px;bottom:-17px}
