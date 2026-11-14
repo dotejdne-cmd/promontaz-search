@@ -1,0 +1,11 @@
+/* ProMontaz ux.css v1 – mobilní menu: služby a informace */
+@media(max-width:767px){
+.top-navigation-bar-menu{display:flex!important;flex-direction:column;padding:6px 0;margin:0}
+.top-navigation-bar-menu>li{order:3;width:100%;margin:0;padding:0;border:0}
+.top-navigation-bar-menu>li:nth-child(7){order:1}
+.top-navigation-bar-menu>li:nth-child(9){order:2}
+.top-navigation-bar-menu>li>a{display:block;padding:12px 16px;font-size:15px;line-height:20px;min-height:44px;box-sizing:border-box}
+.top-navigation-bar-menu>li:nth-child(7)::before,.top-navigation-bar-menu>li:nth-child(1)::before{display:block;padding:14px 16px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b6b6b}
+.top-navigation-bar-menu>li:nth-child(7)::before{content:"Služby a pomoc"}
+.top-navigation-bar-menu>li:nth-child(1)::before{content:"Informace o nákupu"}
+}
