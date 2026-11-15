@@ -14,3 +14,5 @@
 @media(max-width:767px){.p-detail-inner-header h1,.p-detail-inner-header .h1{font-size:22px!important;line-height:1.25!important;margin:0 0 6px!important}.p-image-wrapper,.p-image-wrapper .p-image{height:auto!important;max-height:280px!important;min-height:0!important;overflow:hidden}.p-image-wrapper .p-image img{max-height:260px!important;width:auto;margin:0 auto;object-fit:contain}}
 .slick-dots li button{position:relative;overflow:visible}.slick-dots li button::after{content:"";position:absolute;left:-8px;right:-8px;top:-17px;bottom:-17px}
 .slick-dots li{margin:0 8px!important}
+@media(max-width:767px){.type-detail .buy-box .add-to-cart{margin-right:68px}.in-kalkulacky .content button{min-height:44px;font-size:14px}}
+.in-index h1.sr-only{position:static!important;width:auto!important;height:auto!important;margin:14px 16px 4px!important;padding:0!important;overflow:visible!important;clip:auto!important;clip-path:none!important;white-space:normal!important;font-size:15px!important;line-height:1.35!important;font-weight:600!important;color:#4a4a4a!important;font-family:inherit!important;text-transform:none!important}
