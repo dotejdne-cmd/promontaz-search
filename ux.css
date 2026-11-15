@@ -2,12 +2,12 @@
 @media(max-width:767px){
 .top-navigation-bar-menu{display:flex!important;flex-direction:column;padding:6px 0;margin:0}
 .top-navigation-bar-menu>li{order:3;width:100%;margin:0;padding:0;border:0}
-.top-navigation-bar-menu>li:nth-child(7){order:1}
-.top-navigation-bar-menu>li:nth-child(9){order:2}
+.top-navigation-bar-menu>li:has(>a[href*="nacenit-material"]){order:1}
+.top-navigation-bar-menu>li:has(>a[href*="/kalkulacky/"]){order:2}
 .top-navigation-bar-menu>li>a{display:block;padding:12px 16px;font-size:15px;line-height:20px;min-height:44px;box-sizing:border-box}
-.top-navigation-bar-menu>li:nth-child(7)::before,.top-navigation-bar-menu>li:nth-child(1)::before{display:block!important;position:static!important;width:auto!important;height:auto!important;transform:none!important;font-family:inherit!important;line-height:16px!important;padding:14px 16px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b6b6b}
-.top-navigation-bar-menu>li:nth-child(7)::before{content:"Služby a pomoc"}
-.top-navigation-bar-menu>li:nth-child(1)::before{content:"Informace o nákupu"}
+.top-navigation-bar-menu>li:has(>a[href*="nacenit-material"])::before,.top-navigation-bar-menu>li:first-child::before{display:block!important;position:static!important;width:auto!important;height:auto!important;transform:none!important;font-family:inherit!important;line-height:16px!important;padding:14px 16px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b6b6b}
+.top-navigation-bar-menu>li:has(>a[href*="nacenit-material"])::before{content:"Služby a pomoc"}
+.top-navigation-bar-menu>li:first-child::before{content:"Informace o nákupu"}
 }
 
 @media(max-width:767px){.category-top .subcategories{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:8px;margin:0 0 12px!important;padding:0 0 6px!important;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}.category-top .subcategories>li{flex:0 0 auto!important;width:auto!important;max-width:none!important;min-width:150px;padding:0!important;margin:0!important;scroll-snap-align:start}}
