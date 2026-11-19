@@ -14,3 +14,13 @@ Obecně: pravidla, která mění výšku prvků nad obsahem, nepatří do ux.css
 
 ## Pokračování
 Měření: Playwright na produkci, `PerformanceObserver('layout-shift')`, šířky 1200/1280/1366/1440/1536/1600/1920 + Pixel 7.
+
+## Ověřeno 19. 11. (produkce)
+- CLS po nasazení (lab, Playwright): desktop 1280/1440 homepage 0,01–0,03, kategorie 0,06, kalkulačka 0,001, nacenění 0,017 (dřív 0,70–0,87). Bez JS chyb, bez horizontálního přetečení na mobilu.
+- Vyhledávání 3.2.0 živě (desktop + mobil), Jarda stable bez chyb.
+- Kalkulačky: všech 12 má doporučení → ověřený vklad do košíku → nacenění; 38/38 odkazovaných produktů existuje se shodným kódem.
+
+## Ke schválení
+- Kategorie **Univerzální silikony** (guid eafe7a3e-33f0-11f1-a856-bc2411162930) je skrytá → 67 produktů (např. sanitární silikon 30211RL) má detail 404, chybí ve výpisu i ve vyhledávání („silikon sanitární“ = 0 výsledků). Kalkulačka silikonu je vkládá do košíku jen podle kódu. Náprava: zviditelnit kategorii (1 přepínač, vratné), pak noční index silikony sám doplní.
+- Rozdíl viditelné produkty (16 068) × index (15 883) ≈ 185 → pravděpodobně další skryté kategorie, prověřit.
+- Mobilní/desktop košík: nativní posun `.cart-row` (CLS 0,11–0,27) – checkout, bez zásahu.
