@@ -201,3 +201,71 @@ test('hlášky nejsou kategorické (index nemá popisy produktů)', () => {
   assert.ok(src.includes('Pro tento dotaz jsme nenašli odpovídající produkty.'));
   assert.ok(!/relaxed|partsMatch/.test(src), 'žádná náhradní shoda rozměrů');
 });
+
+// ===== Množství v dotazu, typ vodiče za pomlčkou, prodejní jednotka (11/2026) =====
+const ids = (q, n = 60) => S(q, n).items.map(i => i.name).join('\n');
+
+test('množství v dotazu: „250 ks vrut 5x60“ = „vrut 5x60“ (i na konci, bez jednotky, s ×)', () => {
+  const base = ids('vrut 5x60');
+  assert.ok(base.split('\n').length >= 4, base);
+  for (const q of ['250 ks vrut 5x60', 'vrut 5x60 250 ks', 'vrut 5x60 - 250 ks', '250ks vrut 5x60', '200 vrut 5x60', '3 bal vrut 5x60', '20× vrut 5x60', '20x vrut 5x60']) {
+    assert.equal(ids(q), base, q);
+    assert.deepEqual(S(q).missing, [], q);
+  }
+});
+
+test('množství: rozměr ani velikost balení se za množství nepovažují', () => {
+  assert.equal(v3.parseQty('kramle 10x200').q, 0);
+  assert.equal(v3.parseQty('lepidlo 25 kg').q, 0);
+  assert.equal(v3.parseQty('silikon 310 ml').q, 0);
+  assert.equal(v3.parseQty('cyky 3x2,5').q, 0);
+  assert.deepEqual(v3.parseQty('250 ks vrut 5x60'), { q: 250, unit: 'ks', query: 'vrut 5x60', raw: '250 ks' });
+  assert.deepEqual(v3.parseQty('kabel cyky 3x2,5 50 m'), { q: 50, unit: 'm', query: 'kabel cyky 3x2,5', raw: '50 m' });
+  assert.equal(v3.parseQty('20× OSB 18').query, 'OSB 18');
+});
+
+test('množství: dotazy, které už něco najdou, zůstávají beze změny', () => {
+  assert.deepEqual(names('kramle 10x200'), ['HASPL Kramle tesařská 10x200']);
+  const lep = names('lepidlo 25 kg');
+  assert.ok(lep.includes('Den Braven Lepidlo na obklady a dlažbu QUARTZ C1T PLUS 25 kg'), lep.join(' | '));
+  assert.ok(!lep.some(n => /20 kg/.test(n)), '25 kg ≠ 20 kg: ' + lep.join(' | '));
+  // „5 m“ je tu délka výrobku, ne množství → hledá se jen 5m přívod
+  const pr = names('prodlužovačka 5 m');
+  assert.ok(pr.length >= 1 && pr.every(n => /5M/.test(n)), pr.join(' | '));
+  assert.ok(names('3m páska').every(n => n.startsWith('3M ')), '3M je značka');
+});
+
+test('typ vodiče za pomlčkou: h07v-k ≠ h07v-u, bez typu najde oba', () => {
+  const k = names('h07v-k 4');
+  assert.ok(k.length >= 2, k.join(' | '));
+  assert.ok(k.every(n => /H07V-K 4 /.test(n)), 'jen ohebný H07V-K: ' + k.join(' | '));
+  const u = names('h07v-u 4');
+  assert.ok(u.length >= 2 && u.every(n => /H07V-U 4 /.test(n)), u.join(' | '));
+  const all = names('h07v 4');
+  assert.ok(all.some(n => /H07V-K/.test(n)) && all.some(n => /H07V-U/.test(n)), all.join(' | '));
+  assert.ok(names('h07v-k 2,5').every(n => /H07V-K 2,5/.test(n)));
+});
+
+test('typ kabelu za pomlčkou: cyky-j jen J, cyky-o jen O, cyky bez typu obojí', () => {
+  assert.deepEqual(names('cyky-j 3x2,5'), ['Kabel CYKY-J 3x2,5 (C)']);
+  assert.deepEqual(names('cyky-o 3x2,5'), ['Kabel CYKY-O 3x2,5 (A)']);
+  assert.deepEqual(names('cyky-o 3x1,5'), ['Kabel CYKY-O 3x1,5 (A)'], '„cykyo“ nesmí přes koncovku -o chytat „cyky“');
+  assert.deepEqual(names('cykylo-j 3x2,5'), ['Kabel CYKYLO-J 3x2,5 (C)']);
+  const any = names('cyky 3x2,5');
+  for (const n of ['Kabel CYKY-J 3x2,5 (C)', 'Kabel CYKY-O 3x2,5 (A)', 'Kabel CYKYLO-J 3x2,5 (C)']) assert.ok(any.includes(n), n);
+  assert.ok(names('cyky j 3x2,5').includes('Kabel CYKY-J 3x2,5 (C)'));
+});
+
+test('prodejní jednotka a obsah balení z indexu (pozice 10, 11); chybí → prázdné', () => {
+  const vr = S('VR_10005').items[0];
+  assert.equal(vr.name, 'HASPL Vrut konstrukční 3,5x35 zápust.hl. TX15 ZZ');
+  assert.deepEqual([vr.unit, vr.pack], ['bal', '1000 ks']);
+  const kr = S('kramle 10x200').items[0];
+  assert.deepEqual([kr.unit, kr.pack], ['', '']);
+  assert.equal(v3.unitLabel('bal', '1000 ks'), '/ bal (1000 ks)');
+  assert.equal(v3.unitLabel('ks', '25 kg'), '/ ks (25 kg)');
+  assert.equal(v3.unitLabel('m', '100 m'), '/ m');
+  assert.equal(v3.unitLabel('ks', '1 ks'), '/ ks');
+  assert.equal(v3.unitLabel('m2', ''), '/ m²');
+  assert.equal(v3.unitLabel('', '1000 ks'), '', 'bez jednotky nic – nedomýšlet');
+});

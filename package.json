@@ -4,6 +4,7 @@
   "type": "commonjs",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "compare": "node tools/compare.mjs"
+    "compare": "node tools/compare.mjs",
+    "regress": "node tools/regress.mjs"
   }
 }

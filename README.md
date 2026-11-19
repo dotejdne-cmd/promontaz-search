@@ -47,3 +47,15 @@ Testovací režim bez úpravy souboru: `<script src="https://dotejdne-cmd.github
 a otevřít https://www.promontaz.cz/?psearch3=test (vypnutí `?psearch3=off`). Řádek v3 vložte **před** řádek v2: aktivní v3 pak v2 k poli nepustí (jeden našeptávač, jedna obsluha kláves, jedno měření); bez testovacího parametru se v3 nezapne a běží jen v2. Je-li řádek v3 až za v2, v3 se pro jistotu nezapne vůbec.
 
 Testy: `npm test`; v GitHub Actions běží pro každý pull request a vedlejší větev (`test.yml`) a před každým zveřejněním z main (`build.yml`). Porovnání v2 × v3: `npm run compare` nebo `node tools/compare.mjs cesta/k/index.json "dotaz1|dotaz2"`.
+
+### v3 – 11/2026: množství v dotazu, typ za pomlčkou, prodejní jednotka
+- **množství v dotazu**: `250 ks vrut 5x60`, `vrut 5x60 200 ks`, `20× osb 18`, `cyky 3x2,5 50 m` najdou totéž co dotaz bez množství. Množství se odebere jen tehdy, když původní dotaz nic nenajde (`prodlužovačka 5 m` – délka výrobku – i `3m páska` zůstávají beze změny). Rozměry (`8x200`) a velikost balení (`25 kg`, `310 ml`) se za množství nepovažují. Množství se nikam neukládá. Pravidla převzata z Jardy (`src/qty.js`).
+- **typ za pomlčkou**: `h07v-k 4` najde jen ohebný H07V-K (ne pevný H07V-U), `cyky-j` jen CYKY-J, `cyky-o` jen CYKY-O; bez typu (`h07v 4`, `cyky 3x2,5`) se najdou všechny typy. Platí jen tehdy, když spojený tvar (`h07vk`, `cykyj`) v katalogu existuje.
+- **prodejní jednotka a obsah balení**: u ceny „189 Kč / bal (1000 ks)“, „37 Kč / m“, „179 Kč / ks (25 kg)“ – jen když údaj v indexu je.
+
+Index – položka `[název, url, obrázek, cena, výrobce, kódy, kategorie, skladem, varianty, klíčová slova, jednotka, obsah balení]`. Pozice 0–9 se nemění (čte je Jarda 3.0.7 i 3.1.1); jednotka a balení jsou na konci a u položky bez obou údajů chybí.
+- **obsah balení** = parametr „Obsah balení“ z Heureka feedu (`1000 ks`, `25 kg`; u variant s různým balením prázdné)
+- **jednotka** = „/ bal“, „/ m“, „/ ks“ z výpisů kategorií e-shopu (ve feedu není). Build přebírá jednotky z minulého indexu (`PREV_INDEX_URL`) a každou noc projde nejvýš `UNIT_PAGES` (200) stránek výpisu po dvou s pauzou 300 ms, kategorie střídá dokola (celý e-shop ≈ 920 stránek ≈ 5 nocí). U produktů s variantami se jednotka nezapisuje (varianty mohou mít jinou: pytel × paleta). Co se nezjistí, zůstane prázdné.
+
+Regrese starý × nový v3: `npm run regress -- cesta/k/index.json main` (dotazy v `tools/regress-queries.txt`, `--md` = tabulka).
+
