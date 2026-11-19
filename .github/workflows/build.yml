@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '15 2 * * *'   # každou noc (cca 3:15–4:15 českého času)
   workflow_dispatch:        # ruční spuštění tlačítkem
+    inputs:
+      rychle:
+        description: 'Jen přepnout verzi (rollback): index převzít z webu, nestavět znovu'
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -28,7 +33,10 @@ jobs:
         with:
           node-version: 22
       - run: node --test test/*.test.mjs   # testy vyhledávání; když selžou, nic se nezveřejní
-      - run: node build-index.mjs public
+      - if: ${{ !inputs.rychle }}
+        run: node build-index.mjs public
+      - if: ${{ inputs.rychle }}   # ~1 min: search-v3.js podle package.json → psearch.stable, index beze změny
+        run: node release.mjs public --index-from https://dotejdne-cmd.github.io/promontaz-search/index.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public

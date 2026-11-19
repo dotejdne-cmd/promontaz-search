@@ -9,6 +9,7 @@
   'use strict';
 
   var script = typeof document !== 'undefined' ? document.currentScript : null;
+  var VERSION = '3.2.0';
 
   // ===== NASTAVENÍ =====
   var CONFIG = {
@@ -60,7 +61,9 @@
   };
   var ENDINGS = ['ami', 'ach', 'ech', 'ich', 'ych', 'ovi', 'ove', 'ova', 'ovy', 'emi', 'ou', 'em', 'ym', 'im', 'y', 'a', 'e', 'i', 'u', 'o'];
   var TOK = /[a-z0-9]+(?:[.\/][a-z0-9]+)*/g;
-  var UNIT = /(\d)\s?(?:mm2|mm|cm|ml|kg|ks)(?=\s*[x\/]\s*\d|[^a-z0-9]|$)/g;
+  var UNIT = /(\d)\s?(?:mm2|mm|cm|ks)(?=\s*[x\/]\s*\d|[^a-z0-9]|$)/g;
+  // hmotnost a objem zůstávají u čísla: „25 kg“ a „25 ml“ jsou různé výrobky; holé „25“ najde oboje
+  var WEIGHT = /(\d)\s?(kg|ml)(?=\s*[x\/]\s*\d|[^a-z0-9]|$)/g;
 
   function norm(s) {
     return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -68,6 +71,7 @@
       .replace(/(\d),(\d)/g, '$1.$2').replace(/[×*]/g, 'x')
       .replace(/(\d)\.(\d*?)0+(?!\d)/g, function (m, a, b) { return b ? a + '.' + b : a; }) // 1,50 → 1.5, 1,0 → 1
       .replace(UNIT, '$1')                              // 2,5mm2 / 35 mm / 10ks → jen číslo
+      .replace(WEIGHT, '$1$2')                          // 25 kg / 310 ml → 25kg / 310ml (25 kg ≠ 25 ml)
       .replace(/(\d)\s*[x\/]\s*(?=\d)/g, '$1x');        // 120/100/4000, 120 x 100, 120×100 → 120x100x4000
   }
   function compact(s) { return norm(s).replace(/[^a-z0-9]/g, ''); }
@@ -129,6 +133,55 @@
     return prev[b.length];
   }
 
+  // ===== MNOŽSTVÍ V DOTAZU =====
+  // „250 ks vrut 5x60“, „vrut 5x60 – 200 ks“, „20× OSB 18“, „kabel 3x2,5 50 m“ → {q, unit, query, raw}.
+  // Převzato z Jardy (src/qty.js). Rozměry (8x200, 3x2,5) se za množství nikdy nepovažují; kg, l a ml
+  // také ne – u stavební chemie jde o velikost balení („lepidlo 25 kg“, „silikon 310 ml“).
+  // Množství slouží jen k vyčištění dotazu pro hledání, nikam se neukládá.
+  var QTY_UNIT = '(ks|kusu|kusy|kus|bal|baleni|bm|m2|m|metru|metry|metr|role|roli|rol|paru|pary|par|palet|palety|paleta)';
+  var QTY_MAP = { ks: 'ks', kus: 'ks', kusy: 'ks', kusu: 'ks', bal: 'bal', baleni: 'bal', m: 'm', bm: 'm', metr: 'm', metru: 'm', metry: 'm', m2: 'm2',
+    role: 'role', roli: 'role', rol: 'role', par: 'pár', paru: 'pár', pary: 'pár', paleta: 'paleta', palety: 'paleta', palet: 'paleta' };
+  function qflat(s) {
+    s = String(s || '').toLowerCase();
+    if (s.normalize) s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return s.replace(/²/g, '2').replace(/[×✕]/g, 'x');
+  }
+  function qnum(t) { var n = parseFloat(String(t).replace(',', '.')); return isFinite(n) && n > 0 && n <= 100000 ? Math.round(n * 1000) / 1000 : 0; }
+  function qword(s) { return /[a-z]{2,}/.test(qflat(s)); }
+  function parseQty(raw) {
+    var orig = String(raw || '').replace(/\s+/g, ' ').trim(), s = qflat(orig), m;
+    function res(q, unit, from, to) {
+      var query = (orig.slice(0, from) + ' ' + orig.slice(to)).replace(/\s+/g, ' ').replace(/^[\s\-–:,;]+|[\s\-–:,;]+$/g, '');
+      return { q: q, unit: unit, query: query, raw: orig.slice(from, to).trim() };
+    }
+    // 1) na začátku s jednotkou: „200 ks vrut…“, „3 bal. hmoždinky“, „50m kabel“
+    if ((m = new RegExp('^(\\d+(?:[.,]\\d+)?)\\s*' + QTY_UNIT + '\\.?\\s+(?=\\S)').exec(s)) && qword(s.slice(m[0].length))) return res(qnum(m[1]), QTY_MAP[m[2]], 0, m[0].length);
+    // 2) na začátku „20×“ / „20x“ / „20 x“ před slovem (ne před číslem – to je rozměr)
+    if ((m = /^(\d+(?:[.,]\d+)?)\s*[x*]\s*(?=[a-z])/.exec(s)) && qword(s.slice(m[0].length))) return res(qnum(m[1]), '', 0, m[0].length);
+    // 3) na konci s jednotkou: „vrut 5x60 200 ks“, „… - 20 ks“, „kabel 3x2,5 50m“
+    if ((m = new RegExp('(?:^|[\\s\\-–:,;])(\\d+(?:[.,]\\d+)?)\\s*' + QTY_UNIT + '\\.?$').exec(s)) && qword(s.slice(0, m.index))) {
+      return res(qnum(m[1]), QTY_MAP[m[2]], m.index + m[0].search(/\d/), s.length);
+    }
+    // 4) na konci „… 200×“ (jen s mezerou před číslem; „… x 200“ se nedá odlišit od rozměru)
+    if ((m = /\s(\d+(?:[.,]\d+)?)\s*x$/.exec(s)) && qword(s.slice(0, m.index))) return res(qnum(m[1]), '', m.index, s.length);
+    // 5) na začátku holé číslo před slovem: „200 vrut 5x60“
+    if ((m = /^(\d+(?:[.,]\d+)?)\s+(?!(?:mm2?|cm|kg|ml)\b)(?=[a-z]{2,})/.exec(s)) && qword(s.slice(m[0].length))) return res(qnum(m[1]), '', 0, m[0].length);
+    return { q: 0, unit: '', query: orig, raw: '' };
+  }
+
+  // typ za pomlčkou: „cyky-j“ → cyky + cykyj, „h07v-k“ → h07v + h07vk (jen když spojený tvar v katalogu existuje).
+  // Dotaz bez typu („cyky 3x2,5“) najde všechny typy, dotaz s typem jen ten.
+  var HYPHEN_TYPE = /([a-z0-9]*[a-z])-([a-z])(?![a-z0-9])/g;
+
+  // „/ bal (1000 ks)“ – jen když index prodejní jednotku zná (nic se nedomýšlí).
+  // Obsah balení se připíše, když je v jiné jednotce než prodej („/ bal (1000 ks)“, „/ ks (25 kg)“),
+  // ne u „/ m (100 m)“ nebo „/ ks (1 ks)“, kde by mátl.
+  function unitLabel(unit, pack) {
+    if (!unit) return '';
+    var u = unit === 'm2' ? 'm²' : unit, pm = /^\s*[\d.,]+\s*(\S.*)$/.exec(pack || ''), pu = pm ? pm[1].trim().toLowerCase() : '';
+    return '/ ' + u + (pm && pu !== unit.toLowerCase() && pu !== u.toLowerCase() ? ' (' + pack.trim() + ')' : '');
+  }
+
   function createEngine(data, cfg) {
     cfg = cfg || CONFIG;
     var syn = cfg.synonyms || {};
@@ -159,15 +212,16 @@
     });
 
     // exact = jen přesný tvar a kmen (pro synonyma – „zb“ nesmí chytat „zbytek“)
-    function matchToken(q, exact) {
+    function matchToken(q, exact, noTypo) {
       var res = new Map();
       function put(t, m) { if ((res.get(t) || 0) < m) res.set(t, m); }
       if (post.has(q)) put(q, 1);
-      (stems.get(stem(q)) || []).forEach(function (t) { put(t, 0.9); });
+      // typ za pomlčkou (cykyo, h07vk) bez kmene: „cykyo“ nesmí přes koncovku -o chytat „cyky“
+      if (!noTypo) (stems.get(stem(q)) || []).forEach(function (t) { put(t, 0.9); });
       if (exact) return res;
       var num = isNum(q);
       // překlep: 1 znak od 5 písmen, 2 znaky až od 10 písmen; nikdy jen useknutý konec (chránička ≠ chránič)
-      var maxD = num ? 0 : q.length >= 10 ? 2 : q.length >= 5 ? 1 : 0;
+      var maxD = num || noTypo ? 0 : q.length >= 10 ? 2 : q.length >= 5 ? 1 : 0;
       // číslo na konci dotazu se nikdy nedoplňuje: m8 ≠ m80, 18 ≠ 180, 2x1 ≠ 2x1.5.
       // Pokračovat smí jen rozměr dalším rozměrovým polem (120x120 → 120x120x5000).
       var endsNum = /\d$/.test(q);
@@ -227,7 +281,9 @@
             manufacturer: data.manus[it[4]] || '',
             code: (it[5] || '').split(' ')[0],
             category: cat.split('|').pop().trim(),
-            stock: !!it[7]
+            stock: !!it[7],
+            unit: it[10] || '',   // prodejní jednotka ze stránky e-shopu (ks, bal, m…); '' = neznámá
+            pack: it[11] || ''    // obsah balení („1000 ks“); '' = neuvedeno
           };
         })
       };
@@ -238,14 +294,20 @@
     function search(query, limit, noRest) {
       var qn = norm(query).trim();
       if (!qn) return result([], limit, []);
-      var qts = tokens(qn, false).filter(function (t, i, a) { return a.indexOf(t) === i; });
+      var typed = {};
+      var qh = qn.replace(HYPHEN_TYPE, function (all, a, b) {
+        if (!post.has(a + b)) return all;     // spojený tvar v katalogu není → beze změny
+        typed[a + b] = 1;
+        return a + ' ' + a + b;
+      });
+      var qts = tokens(qh, false).filter(function (t, i, a) { return a.indexOf(t) === i; });
       var req = qts.filter(function (t) { return !STOP[t]; });
       if (!req.length) req = qts;
       var exact = exactCodes(qn);
       // původní tvar slov pro hlášky („sanitární“, ne „sanitarni“)
       var origOf = {};
       String(query).trim().split(/\s+/).forEach(function (w) {
-        tokens(w, false).forEach(function (t) { if (!origOf[t]) origOf[t] = w.replace(/^[„“"'(,.;:]+|[„“"'),.;:]+$/g, ''); });
+        tokens(norm(w).replace(HYPHEN_TYPE, '$1 $1$2'), false).forEach(function (t) { if (!origOf[t]) origOf[t] = w.replace(/^[„“"'(,.;:]+|[„“"'),.;:]+$/g, ''); });
       });
       var label = function (list) {
         return list.map(function (t) { return origOf[t] || t; }).filter(function (w, i, a) { return a.indexOf(w) === i; });
@@ -255,7 +317,7 @@
       function score(q) {
         var sc = new Map(), alts = [q].concat(syn[q] || syn[stem(q)] || []), best = 0;
         alts.forEach(function (a, ai) {
-          var mt = matchToken(a, ai > 0);
+          var mt = matchToken(a, ai > 0, !!typed[a]);
           if (ai && mt.size) synTerms.push(a);
           if (!ai) best = bestMult(mt);
           mt.forEach(function (mult, vt) {
@@ -332,9 +394,18 @@
       return out;
     }
     function searchFB(query, limit, noRest) {
+      query = String(query || '');
       var r = search(query, limit, noRest);
       if (r && r.total) return r;
-      var alts = altQueries(String(query || ''));
+      // Množství v dotazu („250 ks vrut 5x60“, „vrut 5x60 200 ks“, „20× osb 18“) se bez úpravy hledá jako
+      // rozměr a nic nenajde. Pak se zkusí dotaz bez množství. Jen tehdy: „prodlužovačka 5 m“ nebo
+      // „3m páska“ něco najdou a zůstanou beze změny (5 m je tu délka výrobku, 3M značka).
+      var qty = parseQty(query);
+      if (qty.q && qty.query) {
+        var rq = search(qty.query, limit, noRest);
+        if (rq && rq.total) return rq;
+      }
+      var alts = altQueries(query);
       for (var i = 0; i < alts.length; i++) {
         var r2 = search(alts[i], limit, noRest);
         if (r2 && r2.total) return r2;
@@ -345,7 +416,7 @@
   }
 
   if (typeof window === 'undefined') {
-    module.exports = { createEngine: createEngine, norm: norm, tokens: tokens, stem: stem, CONFIG: CONFIG };
+    module.exports = { createEngine: createEngine, norm: norm, tokens: tokens, stem: stem, parseQty: parseQty, unitLabel: unitLabel, VERSION: VERSION, CONFIG: CONFIG };
     return;
   }
 
@@ -357,10 +428,12 @@
     flag = localStorage.getItem(CONFIG.testParam) === '1';
   } catch (e) { flag = p === 'test'; }
   if (CONFIG.mode !== 'all' && !flag) return;
-  if (window.__psearch3) return; // vloženo dvakrát
+  // vloženo dvakrát → nic; výjimka: zkušební verze, kterou zapnul kanál vydání (channel.js, ?psearch3=next)
+  var isNext = !!(script && /search-v3-next\.js/.test(script.src || ''));
+  if (window.__psearch3 && !(isNext && window.__psearch3 === 'next')) return;
   window.__psearch3 = true;
 
-  var INDEX_URL = CONFIG.indexUrl || (script && script.src ? script.src.replace(/search(-v\d+)?\.js(\?.*)?$/, 'index.json') : 'index.json');
+  var INDEX_URL = CONFIG.indexUrl || (script && script.src ? script.src.replace(/search(-v\d+)?(-next|-\d+\.\d+\.\d+)?\.js(\?.*)?$/, 'index.json') : 'index.json');
 
   // ===== VZHLED =====
   var A = CONFIG.accent;
@@ -378,6 +451,7 @@
     '#psearch3 .ps-meta span+span:before{content:", "}' +
     '#psearch3 .ps-price{font-weight:700;white-space:nowrap;text-align:right}' +
     '#psearch3 .ps-stock,#psearch-page .ps-stock{display:block;color:#2e7d32;font-weight:500;font-size:12px}' +
+    '#psearch3 .ps-unit,#psearch-page .ps-unit{display:block;color:#6b7177;font-weight:400;font-size:12px;white-space:nowrap}' +
     '#psearch3 .ps-all{display:block;width:100%;padding:11px 12px;border:0;border-top:1px solid #eceef0;background:#f7f8f9;' +
     'font:inherit;font-weight:600;color:#23272b;text-align:left;cursor:pointer}' +
     '#psearch3 .ps-all.on,#psearch3 .ps-all:hover{background:' + A + ';color:#fff}' +
@@ -403,6 +477,7 @@
 
   var panel = document.createElement('div');
   panel.id = 'psearch3';
+  panel.setAttribute('data-version', VERSION);
   panel.setAttribute('role', 'listbox');
 
   // ===== NAČTENÍ INDEXU =====
@@ -447,7 +522,11 @@
       return hit ? '<b>' + esc(w) + '</b>' : esc(w);
     }).join('');
   }
-  function priceHtml(it) { return it.price != null ? (it.from ? 'od ' : '') + fmt(it.price) : ''; }
+  function priceHtml(it) {
+    if (it.price == null) return '';
+    var u = unitLabel(it.unit, it.pack); // „/ bal (1000 ks)“ jen když jednotku index zná
+    return (it.from ? 'od ' : '') + fmt(it.price) + (u ? '<span class="ps-unit">' + esc(u) + '</span>' : '');
+  }
 
   function place() {
     if (!activeInput) return;

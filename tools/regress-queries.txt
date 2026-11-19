@@ -1,0 +1,88 @@
+# Regresní sada pro tools/regress.mjs – běžné dotazy zákazníků (jeden na řádek)
+# vruty
+vrut 5x60
+vruty 4x40
+vrut konstrukční 6x100
+vrut terasový 5x50
+vrut do sádrokartonu
+turbošroub
+pozinkovaný vrut
+VR_10005
+VR_10796
+# kramle, hřebíky, kotvy
+kramle 10x200
+kramle
+hřebík 3,1x90
+kotva do ytongu
+kotva chemická
+závitová tyč m8
+matice m10
+podložka m12
+# dřevo, desky
+osb 18
+osb deska 15
+osb 2500x1250x18
+kvh 120x120
+kvh 100x100x5000
+hranol 60x60
+sdk deska
+# kabely a vodiče
+cyky 3x2,5
+cyky 3x1,5
+cyky 5x2,5
+cyky-j 3x2,5
+cyky-o 3x1,5
+cyky j 3x1,5
+cykylo-j 3x2,5
+cya 4
+cya 2,5 zelenožlutá
+h07v-k 4
+h07v-k 2,5
+h07v-u 4
+h07v-u 2,5
+h07v 4
+cyky-j 5x6
+# WAGO, krabice, chráničky
+WAGO 221-413
+221413
+wago 221-415
+svorka wago
+geos-l
+krabice pod omítku
+kabelová chránička
+husí krk
+# hmoždinky
+hmoždinka 8x40
+hmoždinky 10
+hmoždinka do zateplení
+rámová hmoždinka
+# pěny, silikony, lepidla
+montážní pěna
+pěna pistolová
+sanitární silikon
+silikon transparentní
+lepidlo 25 kg
+t-rex
+akryl
+# elektro
+jistič 16a
+jistič b16 3f
+chránič 30ma
+zásuvka dvojnásobná
+prodlužovačka 5 m
+3m páska
+izolační páska
+# kódy a EAN
+4050821808442
+EL_SVO_81585726
+EL_KAB_17018
+# množství v dotazu
+250 ks vrut 5x60
+vrut 5x60 250 ks
+200 vrut 5x60
+20× osb 18
+osb 18 20 ks
+50 m cyky 3x2,5
+cyky 3x2,5 50m
+3 bal hmoždinka 8x40
+10ks kramle 10x200
