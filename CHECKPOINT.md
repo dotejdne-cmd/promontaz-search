@@ -42,3 +42,10 @@ Měření: Playwright na produkci, `PerformanceObserver('layout-shift')`, šíř
 Do krátkého popisu (`description`) 9 kategorií přidán blok `.pm-kalk-cta` (náhled v6 128×72 z Pages + „Spočítat zdarma ›“ + „Nacenit celý seznam ›“): konstrukční, univerzální, terasové vruty, vruty do SDK, univerzální hmoždinky, pistolové a trubičkové pěny, instalační kabely, povrchové úpravy. Původní text beze změny, `secondDescription` (SEO) nedotčen.
 Záloha původních popisů: `backups/kategorie-popis-2026-11-19.json` (rollback = category_update s uloženým `description`).
 Měření v GA4: page_referrer kategorie → page_view /kalkulacky/… a události kalkulaček `*_add_to_cart`.
+
+## Landing pages v4/v5 (19. 11.)
+- Zdroj: Drive `2026-11-16-manual-lp-kanaly/2-landing-page` (v4) a `2026-11-16-v5-akvizice/landing-page` (v5). Jde o přestavbu homepage; HTML prototypy na Drive nejsou.
+- NASAZENO (API): článek „Jak poptat stavební materiál“ (id 129) – horní CTA `.pm-cta-top` + banner v6 kalkulaček `.pm-kalk-banner` (rollback = smazat oba bloky).
+- PŘIPRAVENO: hero karty v5 → `shoptet-bloky/hero-karty-v5.md` (admin, 6 bannerů).
+- VYNECHÁNO: formuláře z prototypů (nefunkční), mini kalkulačka s ukázkovým výsledkem, přepínač „Co vás dnes pálí?“ (bez úplných textů), sticky lišta na mobilu (koliduje s Jardou), hodnocení 5,0/11 (zastaralé), loga značek (bez souhlasu).
+- `ux.css` v17 živě: náhledy /kalkulacky/ jako background – funguje i ve Firefoxu.
