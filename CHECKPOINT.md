@@ -24,3 +24,16 @@ Měření: Playwright na produkci, `PerformanceObserver('layout-shift')`, šíř
 - Kategorie **Univerzální silikony** (guid eafe7a3e-33f0-11f1-a856-bc2411162930) je skrytá → 67 produktů (např. sanitární silikon 30211RL) má detail 404, chybí ve výpisu i ve vyhledávání („silikon sanitární“ = 0 výsledků). Kalkulačka silikonu je vkládá do košíku jen podle kódu. Náprava: zviditelnit kategorii (1 přepínač, vratné), pak noční index silikony sám doplní.
 - Rozdíl viditelné produkty (16 068) × index (15 883) ≈ 185 → pravděpodobně další skryté kategorie, prověřit.
 - Mobilní/desktop košík: nativní posun `.cart-row` (CLS 0,11–0,27) – checkout, bez zásahu.
+
+## Vizuály v6 (20. 11.)
+**Nasazeno:** přehled `/kalkulacky/` – 12 náhledů z `kalkulacky-1200x800.zip` (ořez 16:9, WebP 480/800, `assets/kalkulacky/`), přes `ux.css` v16 (`content:url`). Bez podpory zůstane původní fotka.
+
+**Trvalé řešení (Shoptet admin → Blog → článek → Obrázek):** nahrát `https://dotejdne-cmd.github.io/promontaz-search/assets/kalkulacky/clanek/<slug>-1200x675.jpg` ke každému článku kalkulačky. Pak se obrázek použije i jako og:image při sdílení a blok v16 v ux.css lze smazat.
+
+**Homepage banner (čeká na schválení, šablona):** nad mřížku `#pmE` (sekce „Spočítejte si materiál“):
+```html
+<a href="/kalkulacky/" class="pm-kalk-banner" style="display:block;margin:0 0 16px"><picture>
+<source media="(max-width:575px)" srcset="https://dotejdne-cmd.github.io/promontaz-search/assets/bannery/kalk-banner-mobil-780x600.webp" width="780" height="600">
+<img src="https://dotejdne-cmd.github.io/promontaz-search/assets/bannery/kalk-banner-homepage-1312.webp" srcset="https://dotejdne-cmd.github.io/promontaz-search/assets/bannery/kalk-banner-homepage-2624.webp 2x" width="1312" height="360" loading="lazy" alt="12 kalkulaček zdarma – spočítejte materiál dřív, než objednáte" style="width:100%;height:auto;border-radius:10px"></picture></a>
+```
+**Vynecháno:** vizuály věrnostního programu („Parťák“ – název a slevové úrovně nejsou schválené), FB/IG formáty 1080×1080/1350 (sociální sítě, ne web).
