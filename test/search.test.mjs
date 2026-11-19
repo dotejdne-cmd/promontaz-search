@@ -269,3 +269,17 @@ test('prodejní jednotka a obsah balení z indexu (pozice 10, 11); chybí → pr
   assert.equal(v3.unitLabel('m2', ''), '/ m²');
   assert.equal(v3.unitLabel('', '1000 ks'), '', 'bez jednotky nic – nedomýšlet');
 });
+
+test('hmotnost a objem: 25 kg ≠ 25 ml, holé číslo najde oboje', () => {
+  const kg = names('lepidlo 25 kg');
+  assert.ok(kg.includes('Den Braven Lepidlo na obklady a dlažbu QUARTZ C1T PLUS 25 kg'), kg.join(' | '));
+  assert.ok(!kg.some(n => /25 ml/.test(n)), 'bez T-REX 25 ml: ' + kg.join(' | '));
+  assert.ok(kg.every(n => /25 kg/.test(n)), kg.join(' | '));
+  assert.deepEqual(names('lepidlo 25 ml'), ['Soudal T-REX lepidlo čiré - 25 ml']);
+  assert.deepEqual(names('lepidlo 25ml'), names('lepidlo 25 ml'));
+  const bare = names('lepidlo 25');
+  assert.ok(bare.some(n => /25 kg/.test(n)) && bare.some(n => /25 ml/.test(n)), 'bez jednotky obojí: ' + bare.join(' | '));
+  assert.equal(v3.norm('25 kg'), '25kg');
+  assert.equal(v3.norm('310 ML'), '310ml');
+  assert.equal(v3.norm('3x2,5 mm2'), '3x2.5', 'mm/mm² dál jen číslo');
+});

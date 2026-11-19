@@ -60,7 +60,9 @@
   };
   var ENDINGS = ['ami', 'ach', 'ech', 'ich', 'ych', 'ovi', 'ove', 'ova', 'ovy', 'emi', 'ou', 'em', 'ym', 'im', 'y', 'a', 'e', 'i', 'u', 'o'];
   var TOK = /[a-z0-9]+(?:[.\/][a-z0-9]+)*/g;
-  var UNIT = /(\d)\s?(?:mm2|mm|cm|ml|kg|ks)(?=\s*[x\/]\s*\d|[^a-z0-9]|$)/g;
+  var UNIT = /(\d)\s?(?:mm2|mm|cm|ks)(?=\s*[x\/]\s*\d|[^a-z0-9]|$)/g;
+  // hmotnost a objem zůstávají u čísla: „25 kg“ a „25 ml“ jsou různé výrobky; holé „25“ najde oboje
+  var WEIGHT = /(\d)\s?(kg|ml)(?=\s*[x\/]\s*\d|[^a-z0-9]|$)/g;
 
   function norm(s) {
     return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -68,6 +70,7 @@
       .replace(/(\d),(\d)/g, '$1.$2').replace(/[×*]/g, 'x')
       .replace(/(\d)\.(\d*?)0+(?!\d)/g, function (m, a, b) { return b ? a + '.' + b : a; }) // 1,50 → 1.5, 1,0 → 1
       .replace(UNIT, '$1')                              // 2,5mm2 / 35 mm / 10ks → jen číslo
+      .replace(WEIGHT, '$1$2')                          // 25 kg / 310 ml → 25kg / 310ml (25 kg ≠ 25 ml)
       .replace(/(\d)\s*[x\/]\s*(?=\d)/g, '$1x');        // 120/100/4000, 120 x 100, 120×100 → 120x100x4000
   }
   function compact(s) { return norm(s).replace(/[^a-z0-9]/g, ''); }
