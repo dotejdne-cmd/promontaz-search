@@ -25,6 +25,8 @@ export function writeRelease(out, root = ROOT) {
   for (const f of ['search.js', 'search-v2.js', 'ux.css', 'demo.html']) {
     if (fs.existsSync(path.join(root, f))) fs.copyFileSync(path.join(root, f), path.join(out, f));
   }
+  // obrázky (vizuály kalkulaček aj.) – zveřejní se jako /assets/… beze změny
+  if (fs.existsSync(path.join(root, 'assets'))) fs.cpSync(path.join(root, 'assets'), path.join(out, 'assets'), { recursive: true });
   const versions = fs.readdirSync(path.join(root, 'versions')).filter(f => /^search-v3-\d+\.\d+\.\d+\.js$/.test(f));
   for (const f of versions) fs.copyFileSync(path.join(root, 'versions', f), path.join(out, f));
   const channel = fs.readFileSync(path.join(root, 'channel.js'), 'utf8');

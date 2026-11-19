@@ -20,7 +20,7 @@ test('stabilní verze je beze změny zálohovaná a zákazníkům jde přesně o
   assert.equal(read(`search-v3-${stable}.js`), src);
   assert.equal(read('search-v3-next.js'), fs.readFileSync(path.join(ROOT, 'search-v3.js'), 'utf8'));
   assert.ok(rel.versions.includes('search-v3-3.1.0.js'), 'záloha 3.1.0 se zveřejňuje vždy');
-  for (const f of ['search.js', 'search-v2.js', 'ux.css', 'demo.html', 'release.json']) assert.ok(fs.existsSync(path.join(out, f)), f);
+  for (const f of ['search.js', 'search-v2.js', 'ux.css', 'demo.html', 'release.json', 'assets/kalkulacky/kalk-osb-800.webp']) assert.ok(fs.existsSync(path.join(out, f)), f);
 });
 
 test('záloha 3.1.0 = verze, která běžela na promontaz.cz do 11/2026 (otisk)', () => {
