@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { execFileSync } from 'node:child_process';
-import { normUnit, normPack, listingUnits, pageUnit } from '../build-units.mjs';
+import { normUnit, normPack, listingUnits, pageUnit, refreshUnits } from '../build-units.mjs';
 
 const page = f => zlib.gunzipSync(fs.readFileSync(new URL('./fixtures/' + f + '.html.gz', import.meta.url))).toString('utf8');
 
@@ -79,4 +79,102 @@ test('build-index: nové údaje jen na konci položky, pozice 0–9 beze změny 
   assert.equal(typeof a[9], 'string');
   assert.deepEqual(a.slice(10), ['', '1000 ks'], 'jednotka neznámá (UNIT_PAGES=0) → prázdná, balení z feedu');
   assert.equal(b.length, 10, 'bez jednotky i balení se položka neprodlužuje');
+});
+
+// ===== obnova jednotek: nic nesmí zůstat zastaralé =====
+const O = 'https://www.promontaz.cz';
+const listing = (cat, rows, pages = 1) => rows.map(([slug, u]) =>
+  `<div class="product"><a href="/${cat}/${slug}/" class="name">x</a><span class="pr-list-unit">/&nbsp;${u}</span></div>`).join('') +
+  Array.from({ length: pages - 1 }, (_, i) => `<a href="/${cat}/strana-${i + 2}/">${i + 2}</a>`).join('');
+const prods = (...urls) => new Map(urls.map(u => [`${O}/${u}/`, { url: `${O}/${u}/`, unit: '' }]));
+const site = (pages) => { const log = []; return { log, fetchText: async (url) => { log.push(url.slice(O.length)); return pages[url.slice(O.length)] ?? ''; } }; };
+const prevIndex = (rows, checked) => ({ base: O + '/', unitChecked: checked, items: rows.map(([u, unit]) => ['n', u + '/', '', 1, 0, '', 0, 0, 0, '', unit, '']) });
+
+test('refreshUnits: první noc – jednotky z výpisu, kategorie označena jako zkontrolovaná', async () => {
+  const p = prods('vruty/a', 'vruty/b', 'kabely/c');
+  const s = site({ '/vruty/': listing('vruty', [['a', 'bal']], 2), '/vruty/strana-2/': listing('vruty', [['b', 'ks']]), '/kabely/': listing('kabely', [['c', 'm']]) });
+  const r = await refreshUnits({ products: p, prev: null, origin: O, today: 100, pages: 10, fetchText: s.fetchText });
+  assert.deepEqual([...p.values()].map(x => x.unit), ['bal', 'ks', 'm']);
+  assert.deepEqual(r.checked, { kabely: 100, vruty: 100 });
+});
+
+test('refreshUnits: změna jednotky na webu přepíše starou; produkt zmizelý z výpisu jednotku ztratí', async () => {
+  const p = prods('vruty/a', 'vruty/b');
+  const prev = prevIndex([['vruty/a', 'ks'], ['vruty/b', 'bal']], { vruty: 98 });
+  const s = site({ '/vruty/': listing('vruty', [['a', 'bal']]) });
+  const r = await refreshUnits({ products: p, prev, origin: O, today: 100, pages: 10, fetchText: s.fetchText });
+  assert.equal(p.get(`${O}/vruty/a/`).unit, 'bal', 'ks → bal');
+  assert.equal(p.get(`${O}/vruty/b/`).unit, '', 'b ve výpisu není → prázdné, ne stará hodnota');
+  assert.deepEqual([r.stats.changed, r.stats.cleared], [1, 1]);
+});
+
+test('refreshUnits: jednotka přečtená dnes ze stránky produktu se nemaže', async () => {
+  const p = prods('vruty/a', 'vruty/skryty');
+  p.get(`${O}/vruty/skryty/`).unit = 'bal';
+  p.get(`${O}/vruty/skryty/`).unitFresh = true;
+  const s = site({ '/vruty/': listing('vruty', [['a', 'ks']]) });
+  await refreshUnits({ products: p, prev: null, origin: O, today: 100, pages: 10, fetchText: s.fetchText });
+  assert.equal(p.get(`${O}/vruty/skryty/`).unit, 'bal');
+});
+
+test('refreshUnits: jednotka z kategorie nekontrolované déle než maxAge se zahodí', async () => {
+  const p = prods('vruty/a', 'kabely/c');
+  const prev = prevIndex([['vruty/a', 'bal'], ['kabely/c', 'm']], { vruty: 80, kabely: 99 });
+  const s = site({});
+  const r = await refreshUnits({ products: p, prev, origin: O, today: 100, pages: 0, maxAge: 14, fetchText: s.fetchText });
+  assert.equal(p.get(`${O}/vruty/a/`).unit, '', '20 dní → zahodit');
+  assert.equal(p.get(`${O}/kabely/c/`).unit, 'm', '1 den → převzít');
+  assert.deepEqual(r.checked, { kabely: 99 });
+  assert.equal(r.stats.expired, 1);
+});
+
+test('refreshUnits: pořadí od nejdéle nekontrolované; nedokončená kategorie se neoznačí a nic nemaže', async () => {
+  const p = prods('a-kat/x', 'b-kat/y', 'c-kat/z', 'c-kat/w');
+  const prev = prevIndex([['a-kat/x', 'ks'], ['b-kat/y', 'ks'], ['c-kat/z', 'ks'], ['c-kat/w', 'ks']], { 'a-kat': 99, 'b-kat': 95, 'c-kat': 90 });
+  const s = site({ '/c-kat/': listing('c-kat', [['z', 'bal']], 2), '/b-kat/': listing('b-kat', [['y', 'ks']]) });
+  const r = await refreshUnits({ products: p, prev, origin: O, today: 100, pages: 1, concurrency: 1, fetchText: s.fetchText });
+  assert.deepEqual(s.log, ['/c-kat/'], 'nejstarší (90) první, rozpočet 1 stránka');
+  assert.equal(p.get(`${O}/c-kat/w/`).unit, 'ks', 'výpis má 2 stránky, nevejde se → nic se nemaže');
+  assert.equal(r.checked['c-kat'], 90, 'nedokončená kategorie zůstává s původním dnem');
+  assert.equal(r.unitPages['c-kat'], 2, 'skutečný počet stránek si index zapamatuje');
+  // další noc se stejným limitem: c-kat (2 stránky) se nevejde → odloží se, vezme se b-kat
+  const s2 = site({ '/c-kat/': listing('c-kat', [['z', 'bal']], 2), '/b-kat/': listing('b-kat', [['y', 'ks']]) });
+  const r2 = await refreshUnits({ products: prods('b-kat/y', 'c-kat/z', 'c-kat/w'), prev: { ...prev, unitPages: r.unitPages }, origin: O, today: 101, pages: 1, concurrency: 1, fetchText: s2.fetchText });
+  assert.deepEqual(s2.log, ['/b-kat/']);
+  assert.equal(r2.checked['b-kat'], 101);
+});
+
+test('refreshUnits: chyba stažení stránky – kategorie se neoznačí, jednotky zůstanou', async () => {
+  const p = prods('vruty/a', 'vruty/b');
+  const prev = prevIndex([['vruty/a', 'bal'], ['vruty/b', 'bal']], { vruty: 99 });
+  const s = site({ '/vruty/': listing('vruty', [['a', 'bal']], 2) }); // strana-2 vrátí chybu ('')
+  const r = await refreshUnits({ products: p, prev, origin: O, today: 100, pages: 10, fetchText: s.fetchText });
+  assert.equal(p.get(`${O}/vruty/b/`).unit, 'bal');
+  assert.equal(r.checked.vruty, 99);
+  assert.equal(r.stats.failed, 1);
+});
+
+test('refreshUnits: kategorie, která se nevejde do limitu, se odloží a vezme se menší', async () => {
+  const big = Array.from({ length: 45 }, (_, i) => `velka/p${i}`);   // 3 stránky
+  const p = prods(...big, 'mala/x');
+  const s = site({ '/mala/': listing('mala', [['x', 'ks']]) });
+  const r = await refreshUnits({ products: p, prev: null, origin: O, today: 100, pages: 2, concurrency: 1, fetchText: s.fetchText });
+  assert.deepEqual(s.log, ['/mala/']);
+  assert.deepEqual(r.checked, { mala: 100 });
+  assert.equal(r.stats.skipped, 1);
+});
+
+test('refreshUnits: nadřazená kategorie s dlouhým výpisem → čtou se rovnou stránky jejích produktů', async () => {
+  const p = prods('elektro/a', 'elektro/b');
+  const unitPage = (u) => `<div class="p-final-price-wrapper"><strong>10 Kč<span class="pr-list-unit">/&nbsp;${u}</span></strong></div>`;
+  const s = site({ '/elektro/': listing('elektro', [['x', 'ks']], 50), '/elektro/a/': unitPage('bal'), '/elektro/b/': unitPage('m') });
+  const r = await refreshUnits({ products: p, prev: null, origin: O, today: 100, pages: 10, concurrency: 1, fetchText: s.fetchText });
+  assert.deepEqual(s.log, ['/elektro/', '/elektro/a/', '/elektro/b/'], 'ne 50 stránek výpisu');
+  assert.deepEqual([...p.values()].map(x => x.unit), ['bal', 'm']);
+  assert.equal(r.checked.elektro, 100);
+  assert.equal(r.unitPages.elektro, 50);
+  const s2 = site({ '/elektro/a/': unitPage('bal'), '/elektro/b/': unitPage('ks') });
+  const r2 = await refreshUnits({ products: prods('elektro/a', 'elektro/b'), prev: { base: O + '/', items: [], unitPages: r.unitPages }, origin: O, today: 101, pages: 10, concurrency: 1, fetchText: s2.fetchText });
+  assert.deepEqual(s2.log, ['/elektro/a/', '/elektro/b/'], 'příště rovnou stránky produktů');
+  assert.equal(r2.checked.elektro, 101);
 });

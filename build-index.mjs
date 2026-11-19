@@ -8,13 +8,14 @@
 //
 // Prodejní jednotka (ks / bal / m …) v Heureka feedu není, je jen na webu („189 Kč / bal“). Build ji čte
 // z výpisů kategorií (20 produktů na stránku) – každou noc nejvýš UNIT_PAGES stránek, po dvou souběžně
-// s pauzou, a kategorie střídá dokola. Už zjištěné jednotky přebírá z minulého indexu, takže se e-shop
-// prochází postupně a nezatěžuje. Obsah balení („1000 ks“) je parametr „Obsah balení“ přímo ve feedu.
+// s pauzou, od nejdéle nekontrolované kategorie. Už zjištěné jednotky přebírá z minulého indexu (jen z kategorií
+// zkontrolovaných před nejvýš UNIT_MAX_AGE dny), takže se e-shop prochází postupně a nezatěžuje; změněná jednotka
+// se přepíše při další kontrole kategorie (cyklus ≈ 5 nocí), produkt zmizelý z výpisu jednotku ztratí. Obsah balení („1000 ks“) je parametr „Obsah balení“ přímo ve feedu.
 // Údaj, který se nepodaří zjistit, zůstane prázdný – nic se nedomýšlí.
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { normUnit, normPack, listingUnits, pageUnit } from './build-units.mjs';
+import { normPack, pageUnit, refreshUnits } from './build-units.mjs';
 
 const FEED = process.env.FEED_URL || 'https://www.promontaz.cz/heureka/export/products.xml';
 const SITEMAP = process.env.SITEMAP_URL ?? 'https://www.promontaz.cz/sitemap.xml';
@@ -23,6 +24,7 @@ const OUT = process.argv[2] || 'public';
 const MIN_ITEMS = Number(process.env.MIN_ITEMS || 1000);
 const PREV_INDEX = process.env.PREV_INDEX_URL ?? 'https://dotejdne-cmd.github.io/promontaz-search/index.json';
 const UNIT_PAGES = Number(process.env.UNIT_PAGES ?? 200);
+const UNIT_MAX_AGE = Number(process.env.UNIT_MAX_AGE ?? 14);   // dní; starší jednotka se zahodí (nic nezůstane zastaralé)
 const UA = { 'User-Agent': 'promontaz-search-builder' };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -91,6 +93,7 @@ async function pageProduct(url) {
     stock: /skladem/i.test(avail) ? 1 : 0,
     variants: o.hasVariants ? 2 : 1,
     unit: pageUnit(html),
+    unitFresh: true,   // přečteno dnes přímo ze stránky produktu
     pack: pk ? normPack(pk[1].replace(/<[^>]+>/g, ' ')) : '',
   };
 }
@@ -200,71 +203,29 @@ if (SITEMAP) {
 }
 
 // ===== Prodejní jednotky =====
-// 1) z minulého indexu (už zjištěné), 2) z výpisů kategorií – nejvýš UNIT_PAGES stránek za noc, dokola.
+// Z minulého indexu (jen z kategorií zkontrolovaných před nejvýš UNIT_MAX_AGE dny) a z výpisů kategorií:
+// každou noc nejvýš UNIT_PAGES stránek, od nejdéle nekontrolované kategorie (build-units.mjs → refreshUnits).
+let unitChecked = {}, unitPages = {};
 if (UNIT_PAGES > 0) {
-  let fromPrev = 0;
+  let prev = null;
   if (PREV_INDEX) {
     try {
-      const prev = JSON.parse(/^https?:/i.test(PREV_INDEX) ? await getText(PREV_INDEX) : fs.readFileSync(PREV_INDEX, 'utf8'));
-      for (const it of prev.items || []) {
-        const p = it[10] && byUrl.get((prev.base || '') + it[1]);
-        if (p && !p.unit) { p.unit = normUnit(it[10]); if (p.unit) fromPrev++; }
-      }
+      prev = JSON.parse(/^https?:/i.test(PREV_INDEX) ? await getText(PREV_INDEX) : fs.readFileSync(PREV_INDEX, 'utf8'));
     } catch (e) {
       console.warn(`Minulý index nenačten (${e.message}) – jednotky jen z dnešních stránek`);
     }
   }
   const origin = (() => { try { return new URL(FEED).origin; } catch { return 'https://www.promontaz.cz'; } })();
-  const byCat = new Map();
-  for (const p of byUrl.values()) {
-    const m = /^(https?:\/\/[^/]+)\/([^/]+)\/[^/]+\/$/.exec(p.url);
-    if (!m || m[1] !== origin) continue;
-    if (!byCat.has(m[2])) byCat.set(m[2], { missing: 0, n: 0 });
-    byCat.get(m[2]).n++;
-    if (!p.unit) byCat.get(m[2]).missing++;
-  }
-  // Kategorie bez zjištěných jednotek napřed. Začátek se každý den posune o UNIT_PAGES odhadovaných
-  // stránek (20 produktů na stránku), takže se postupně a rovnoměrně obnoví všechny kategorie.
-  const day = Math.floor(Date.now() / 864e5);
-  const rot = (a) => {
-    if (!a.length) return a;
-    const est = a.map(c => Math.max(1, Math.ceil(byCat.get(c).n / 20))), total = est.reduce((x, y) => x + y, 0);
-    let at = day * UNIT_PAGES % total, i = 0;
-    while (i < a.length - 1 && at >= est[i]) at -= est[i++];
-    return a.slice(i).concat(a.slice(0, i));
+  const fetchText = async (url) => {
+    try { const h = await getText(url); await sleep(300); return h; }   // pauza 300 ms po každé stránce
+    catch (e) { console.warn(`  jednotky: ${e.message}`); return ''; }
   };
-  const names = [...byCat.keys()].sort();
-  const order = rot(names.filter(c => byCat.get(c).missing)).concat(rot(names.filter(c => !byCat.get(c).missing)));
-  let budget = UNIT_PAGES, pages = 0, found = 0, changed = 0, failed = 0, ci = 0;
-  const take = (html) => {
-    for (const [href, unit] of listingUnits(html)) {
-      const p = byUrl.get(origin + href);
-      if (!p) continue;
-      if (p.unit && p.unit !== unit) changed++;
-      if (!p.unit) found++;
-      p.unit = unit;
-    }
-  };
-  const fetchPage = async (url) => {
-    pages++;
-    try { const h = await getText(url); await sleep(300); return h; }
-    catch (e) { failed++; if (failed <= 5) console.warn(`  jednotky: ${e.message}`); return ''; }
-  };
-  // dva souběžné průchody, každý s pauzou 300 ms po stránce
-  await Promise.all([0, 1].map(async () => {
-    while (budget > 0 && ci < order.length) {
-      const cat = order[ci++];
-      budget--;
-      const first = await fetchPage(`${origin}/${cat}/`);
-      if (!first) continue;
-      take(first);
-      const last = Math.max(1, ...[...first.matchAll(new RegExp(`/${cat}/strana-(\\d+)/`, 'g'))].map(m => Number(m[1])));
-      for (let n = 2; n <= last && budget > 0; n++) { budget--; take(await fetchPage(`${origin}/${cat}/strana-${n}/`)); }
-    }
-  }));
-  const known = [...byUrl.values()].filter(p => p.unit).length;
-  console.log(`Jednotky: ${known}/${byUrl.size} produktů (z minulého indexu ${fromPrev}, dnes nově ${found}, změněno ${changed}; ` +
-    `${pages} stránek výpisu, ${ci}/${order.length} kategorií, chyby ${failed})`);
+  const r = await refreshUnits({ products: byUrl, prev, origin, today: Math.floor(Date.now() / 864e5), pages: UNIT_PAGES, maxAge: UNIT_MAX_AGE, fetchText });
+  unitChecked = r.checked; unitPages = r.unitPages;
+  const st = r.stats, known = [...byUrl.values()].filter(p => p.unit).length;
+  console.log(`Jednotky: ${known}/${byUrl.size} produktů (z minulého indexu ${st.fromPrev}, zastaralé zahozeny ${st.expired}, ` +
+    `dnes nově ${st.found}, změněno ${st.changed}, zmizelo z výpisu ${st.cleared}; ${st.pages} stránek, ` +
+    `${st.complete}/${st.cats} kategorií celých, ${st.skipped} odloženo (nevejdou se), chyby ${st.failed}; zkontrolováno ${Object.keys(unitChecked).length} kategorií)`);
 }
 
 const products = [...byUrl.values()];
@@ -313,7 +274,7 @@ const items = products.map(p => [
 ]);
 
 fs.mkdirSync(OUT, { recursive: true });
-const data = { v: 1, built: new Date().toISOString(), base, imgBase, cats, manus, items };
+const data = { v: 1, built: new Date().toISOString(), base, imgBase, cats, manus, items, unitChecked, unitPages };
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(data));
 for (const f of ['search.js', 'search-v2.js', 'search-v3.js', 'ux.css', 'demo.html']) {
   if (fs.existsSync(f)) fs.copyFileSync(f, path.join(OUT, f));
