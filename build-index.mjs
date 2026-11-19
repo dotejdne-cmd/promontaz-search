@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { normPack, pageUnit, refreshUnits } from './build-units.mjs';
+import { writeRelease } from './release.mjs';
 
 const FEED = process.env.FEED_URL || 'https://www.promontaz.cz/heureka/export/products.xml';
 const SITEMAP = process.env.SITEMAP_URL ?? 'https://www.promontaz.cz/sitemap.xml';
@@ -276,8 +277,7 @@ const items = products.map(p => [
 fs.mkdirSync(OUT, { recursive: true });
 const data = { v: 1, built: new Date().toISOString(), base, imgBase, cats, manus, items, unitChecked, unitPages };
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(data));
-for (const f of ['search.js', 'search-v2.js', 'search-v3.js', 'ux.css', 'demo.html']) {
-  if (fs.existsSync(f)) fs.copyFileSync(f, path.join(OUT, f));
-}
+const rel = writeRelease(OUT);   // search-v3.js = stabilní verze (package.json), search-v3-next.js = repo
+console.log(`Vydání: search-v3.js = ${rel.stable}, search-v3-next.js = repo`);
 const kb = Math.round(fs.statSync(path.join(OUT, 'index.json')).size / 1024);
 console.log(`Index: ${items.length} produktů, ${kb} kB → ${OUT}/index.json`);

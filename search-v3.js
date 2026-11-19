@@ -9,6 +9,7 @@
   'use strict';
 
   var script = typeof document !== 'undefined' ? document.currentScript : null;
+  var VERSION = '3.2.0';
 
   // ===== NASTAVENÍ =====
   var CONFIG = {
@@ -415,7 +416,7 @@
   }
 
   if (typeof window === 'undefined') {
-    module.exports = { createEngine: createEngine, norm: norm, tokens: tokens, stem: stem, parseQty: parseQty, unitLabel: unitLabel, CONFIG: CONFIG };
+    module.exports = { createEngine: createEngine, norm: norm, tokens: tokens, stem: stem, parseQty: parseQty, unitLabel: unitLabel, VERSION: VERSION, CONFIG: CONFIG };
     return;
   }
 
@@ -427,10 +428,12 @@
     flag = localStorage.getItem(CONFIG.testParam) === '1';
   } catch (e) { flag = p === 'test'; }
   if (CONFIG.mode !== 'all' && !flag) return;
-  if (window.__psearch3) return; // vloženo dvakrát
+  // vloženo dvakrát → nic; výjimka: zkušební verze, kterou zapnul kanál vydání (channel.js, ?psearch3=next)
+  var isNext = !!(script && /search-v3-next\.js/.test(script.src || ''));
+  if (window.__psearch3 && !(isNext && window.__psearch3 === 'next')) return;
   window.__psearch3 = true;
 
-  var INDEX_URL = CONFIG.indexUrl || (script && script.src ? script.src.replace(/search(-v\d+)?\.js(\?.*)?$/, 'index.json') : 'index.json');
+  var INDEX_URL = CONFIG.indexUrl || (script && script.src ? script.src.replace(/search(-v\d+)?(-next|-\d+\.\d+\.\d+)?\.js(\?.*)?$/, 'index.json') : 'index.json');
 
   // ===== VZHLED =====
   var A = CONFIG.accent;
@@ -474,6 +477,7 @@
 
   var panel = document.createElement('div');
   panel.id = 'psearch3';
+  panel.setAttribute('data-version', VERSION);
   panel.setAttribute('role', 'listbox');
 
   // ===== NAČTENÍ INDEXU =====

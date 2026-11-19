@@ -6,5 +6,9 @@
     "test": "node --test test/*.test.mjs",
     "compare": "node tools/compare.mjs",
     "regress": "node tools/regress.mjs"
+  },
+  "psearch": {
+    "stable": "3.1.0",
+    "_readme": "stable = verze z versions/ pro všechny zákazníky (search-v3.js). Rollback = předchozí verze + zveřejnit. Zkušební verze = search-v3.js z repa jako search-v3-next.js (?psearch3=next)."
   }
 }

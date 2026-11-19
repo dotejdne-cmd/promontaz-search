@@ -20,3 +20,4 @@ jobs:
           node-version: 22
       - run: node --test test/*.test.mjs
       - run: node -e "require('./search.js'); require('./search-v2.js'); require('./search-v3.js')"
+      - run: node release.mjs /tmp/vydani && node -e "require('/tmp/vydani/search-v3.js'); require('/tmp/vydani/search-v3-next.js')"
