@@ -25,7 +25,7 @@ Měření: Playwright na produkci, `PerformanceObserver('layout-shift')`, šíř
 - Rozdíl viditelné produkty (16 068) × index (15 883) ≈ 185 → pravděpodobně další skryté kategorie, prověřit.
 - Mobilní/desktop košík: nativní posun `.cart-row` (CLS 0,11–0,27) – checkout, bez zásahu.
 
-## Vizuály v6 (20. 11.)
+## Vizuály v6 (19. 11.)
 **Nasazeno:** přehled `/kalkulacky/` – 12 náhledů z `kalkulacky-1200x800.zip` (ořez 16:9, WebP 480/800, `assets/kalkulacky/`), přes `ux.css` v16 (`content:url`). Bez podpory zůstane původní fotka.
 
 **Trvalé řešení (Shoptet admin → Blog → článek → Obrázek):** nahrát `https://dotejdne-cmd.github.io/promontaz-search/assets/kalkulacky/clanek/<slug>-1200x675.jpg` ke každému článku kalkulačky. Pak se obrázek použije i jako og:image při sdílení a blok v16 v ux.css lze smazat.
